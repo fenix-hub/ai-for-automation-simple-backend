@@ -1,18 +1,24 @@
 from flask import Flask, request, render_template
-import sqlite3
+import psycopg2
 import os
 
 app = Flask(__name__)
 
 # Initialize the database
 def init_db():
-    conn = sqlite3.connect('database.db')
+    conn = psycopg2.connect(
+        dbname=os.getenv('DB_NAME'),
+        user=os.getenv('DB_USER'),
+        password=os.getenv('DB_PASSWORD'),
+        host=os.getenv('DB_HOST'),
+        port=os.getenv('DB_PORT')
+    )
     cursor = conn.cursor()
     
     # Create results table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS results (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             timestamp TEXT NOT NULL
         )
     ''')
@@ -20,7 +26,7 @@ def init_db():
     # Create data table with foreign key to results table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS data (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             episode INTEGER NOT NULL,
             reward_min REAL NOT NULL,
             reward_mean REAL NOT NULL,
@@ -32,6 +38,7 @@ def init_db():
     ''')
     
     conn.commit()
+    cursor.close()
     conn.close()
 
 # Route to handle data submission
@@ -45,45 +52,66 @@ def submit_data():
     timestamp = request.form['timestamp']
     checkpoint = request.form['checkpoint']
     
-    conn = sqlite3.connect('database.db')
+    conn = psycopg2.connect(
+        dbname=os.getenv('DB_NAME'),
+        user=os.getenv('DB_USER'),
+        password=os.getenv('DB_PASSWORD'),
+        host=os.getenv('DB_HOST'),
+        port=os.getenv('DB_PORT')
+    )
     cursor = conn.cursor()
     
     # Insert into results table
-    cursor.execute('INSERT INTO results (timestamp) VALUES (?)', (timestamp,))
-    result_id = cursor.lastrowid
+    cursor.execute('INSERT INTO results (timestamp) VALUES (%s) RETURNING id', (timestamp,))
+    result_id = cursor.fetchone()[0]
     
     # Insert into data table
     cursor.execute('''
         INSERT INTO data (episode, reward_min, reward_mean, reward_max, episode_length, result_id)
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s)
     ''', (episode, reward_min, reward_mean, reward_max, episode_length, result_id))
     
     conn.commit()
+    cursor.close()
     conn.close()
-    return 'Data submitted successfully!\n'
+    return 'Data submitted successfully!'
 
 # Route to display list of results
 @app.route('/results')
 def list_results():
-    conn = sqlite3.connect('database.db')
+    conn = psycopg2.connect(
+        dbname=os.getenv('DB_NAME'),
+        user=os.getenv('DB_USER'),
+        password=os.getenv('DB_PASSWORD'),
+        host=os.getenv('DB_HOST'),
+        port=os.getenv('DB_PORT')
+    )
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM results')
     results = cursor.fetchall()
+    cursor.close()
     conn.close()
     return render_template('results.html', results=results)
 
 # Route to display data for a specific result
 @app.route('/results/<int:result_id>')
 def list_data(result_id):
-    conn = sqlite3.connect('database.db')
+    conn = psycopg2.connect(
+        dbname=os.getenv('DB_NAME'),
+        user=os.getenv('DB_USER'),
+        password=os.getenv('DB_PASSWORD'),
+        host=os.getenv('DB_HOST'),
+        port=os.getenv('DB_PORT')
+    )
     cursor = conn.cursor()
     cursor.execute('''
         SELECT d.id, d.episode, d.reward_min, d.reward_mean, d.reward_max, d.episode_length, r.timestamp
         FROM data d
         JOIN results r ON d.result_id = r.id
-        WHERE d.result_id = ?
+        WHERE d.result_id = %s
     ''', (result_id,))
     data = cursor.fetchall()
+    cursor.close()
     conn.close()
     return render_template('data.html', data=data)
 
