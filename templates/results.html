@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Results List</title>
+</head>
+<body>
+    <h1>List of Results</h1>
+    <ul>
+        {% for result in results %}
+            <li><a href="/results/{{ result[0] }}">{{ result[1] }}</a></li>
+        {% endfor %}
+    </ul>
+</body>
+</html>
